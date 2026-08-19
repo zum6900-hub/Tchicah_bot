@@ -1,9 +1,34 @@
+import os
 import time
 import sqlite3
+import threading
 import requests
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from bs4 import BeautifulSoup
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 import asyncio
+
+# ==========================================
+# 0. SERVIDOR WEB LEVE (PARA O RENDER NÃO DAR TIMEOUT)
+# ==========================================
+class ServidorStatus(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"Robo Tchicah rodando com sucesso 24h!")
+
+    def log_message(self, format, *args):
+        return  # Silencia logs desnecessários no terminal
+
+def iniciar_servidor_render():
+    porta = int(os.environ.get("PORT", 8080))
+    servidor = HTTPServer(("0.0.0.0", porta), ServidorStatus)
+    print(f"Servidor web de monitoramento ativo na porta {porta}")
+    servidor.serve_forever()
+
+# Inicia o servidor em segundo plano
+threading.Thread(target=iniciar_servidor_render, daemon=True).start()
 
 # ==========================================
 # CONFIGURAÇÕES GERAIS (PT-BR)
@@ -192,7 +217,7 @@ def raspar_magalu(categoria="celulares-e-smartphones/l/te/"):
     return ofertas
 
 # ==========================================
-# 3. ENVIO PARA O TELEGRAM
+# 3. ENVIO FORMATADO PARA O TELEGRAM
 # ==========================================
 async def despachar_para_telegram(bot: Bot, item: dict):
     teclado = InlineKeyboardMarkup([
@@ -231,7 +256,7 @@ async def despachar_para_telegram(bot: Bot, item: dict):
         print(f"[Falha no Envio] Destino ({CHAT_ID}): {e}")
 
 # ==========================================
-# 4. LOOP PRINCIPAL
+# 4. CICLO PRINCIPAL (LOOP AUTOMÁTICO)
 # ==========================================
 async def main():
     inicializar_banco()
@@ -259,4 +284,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-      
+                
