@@ -1,3 +1,13 @@
+import asyncio
+import os
+import sqlite3
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import requests
+from bs4 import BeautifulSoup
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+
 async def main():
     inicializar_banco()
     bot = Bot(token=os.environ.get("BOT_TOKEN"))
