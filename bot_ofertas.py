@@ -13,7 +13,7 @@ from telegram.constants import ParseMode
 # 0. CONFIGURAÇÕES GERAIS E AMBIENTE
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-CHAT_ID = os.environ.get("CHAT_ID", "@tchicah")
+CHAT_ID = os.environ.get("CHAT_ID", "-1003828035343")
 INTERVALO_VARREDURA = int(os.environ.get("INTERVALO_SEGUNDOS", "900"))  # 15 min padrão
 
 HEADERS = {
@@ -41,7 +41,7 @@ class ServidorStatus(BaseHTTPRequestHandler):
 def iniciar_servidor_render():
     porta = int(os.environ.get("PORT", 8080))
     servidor = HTTPServer(("0.0.0.0", porta), ServidorStatus)
-    print(f"[Render] Servidor web ativo na porta {porta}")
+    print(f"[Render] Servidor web ativo na porta {porta}", flush=True)
     servidor.serve_forever()
 
 threading.Thread(target=iniciar_servidor_render, daemon=True).start()
@@ -85,10 +85,12 @@ def raspar_mercado_livre() -> list:
     try:
         res = requests.get(url, headers=HEADERS, timeout=15)
         if res.status_code != 200:
+            print(f"[ML Status] Código HTTP retornado: {res.status_code}", flush=True)
             return ofertas
 
         soup = BeautifulSoup(res.text, "html.parser")
         itens = soup.select(".promotion-item")
+        print(f"[ML] Encontrados {len(itens)} itens brutos na página", flush=True)
 
         for item in itens[:10]:
             link_tag = item.select_one("a.promotion-item__link-container")
@@ -99,8 +101,6 @@ def raspar_mercado_livre() -> list:
             if link_tag and titulo_tag and preco_tag:
                 link = link_tag.get("href", "").split("#")[0]
                 img_url = img_tag.get("src") or img_tag.get("data-src") if img_tag else ""
-                
-                # Gera ID único baseado no link
                 id_oferta = link.split("/p/")[-1] if "/p/" in link else link[-30:]
 
                 ofertas.append({
@@ -112,7 +112,7 @@ def raspar_mercado_livre() -> list:
                     "imagem": img_url
                 })
     except Exception as e:
-        print(f"[Erro Mercado Livre] {e}")
+        print(f"[Erro Mercado Livre] {e}", flush=True)
     return ofertas
 
 def raspar_magalu(categoria="celulares-e-smartphones/l/te/") -> list:
@@ -121,10 +121,12 @@ def raspar_magalu(categoria="celulares-e-smartphones/l/te/") -> list:
     try:
         res = requests.get(url, headers=HEADERS, timeout=15)
         if res.status_code != 200:
+            print(f"[Magalu Status] Código HTTP retornado: {res.status_code}", flush=True)
             return ofertas
 
         soup = BeautifulSoup(res.text, "html.parser")
         itens = soup.select("[data-testid='product-card-container']")
+        print(f"[Magalu] Encontrados {len(itens)} itens brutos na página", flush=True)
 
         for item in itens[:10]:
             link_tag = item.select_one("a")
@@ -146,7 +148,7 @@ def raspar_magalu(categoria="celulares-e-smartphones/l/te/") -> list:
                     "imagem": img_url
                 })
     except Exception as e:
-        print(f"[Erro Magalu] {e}")
+        print(f"[Erro Magalu] {e}", flush=True)
     return ofertas
 
 # ==========================================
@@ -180,26 +182,37 @@ async def despachar_para_telegram(bot: Bot, item: dict):
                 reply_markup=teclado,
                 disable_web_page_preview=False
             )
-        print(f"[Postado] {item['loja']} - {item['titulo'][:35]}...")
+        print(f"[Postado] {item['loja']} - {item['titulo'][:35]}...", flush=True)
         salvar_oferta(item["id"], item["titulo"])
-        await asyncio.sleep(3)  # Pausa contra rate limit do Telegram
+        await asyncio.sleep(3)  # Pausa contra rate limit
     except Exception as e:
-        print(f"[Falha no Envio] {item['titulo'][:30]} -> {e}")
+        print(f"[Falha no Envio] Destino ({CHAT_ID}): {e}", flush=True)
 
 # ==========================================
 # 5. CICLO PRINCIPAL (LOOP AUTOMÁTICO)
 # ==========================================
 async def main():
     if not BOT_TOKEN:
-        print("[Erro Crítico] BOT_TOKEN não encontrado nas variáveis de ambiente.")
+        print("[Erro Crítico] BOT_TOKEN não encontrado nas variáveis de ambiente.", flush=True)
         return
 
     inicializar_banco()
     bot = Bot(token=BOT_TOKEN)
-    print(f"[Status] Bot iniciado com sucesso. Publicando em {CHAT_ID}")
+    print(f"[Status] Bot iniciado com sucesso. Conectando com {CHAT_ID}...", flush=True)
+
+    # TESTE DE CONEXÃO INICIAL DIRETO NO TELEGRAM
+    try:
+        await bot.send_message(
+            chat_id=CHAT_ID,
+            text="🤖 <b>Tchicah Bot online!</b>\nMonitoramento de ofertas ativado.",
+            parse_mode=ParseMode.HTML
+        )
+        print("[Status] Mensagem de teste enviada com sucesso ao grupo!", flush=True)
+    except Exception as e:
+        print(f"[Erro de Teste Telegram] Não foi possível enviar ao chat {CHAT_ID}: {e}", flush=True)
 
     while True:
-        print("\n--- Iniciando nova varredura de ofertas ---")
+        print("\n--- Iniciando nova varredura de ofertas ---", flush=True)
         ofertas = []
         
         # Coleta de produtos
@@ -212,9 +225,8 @@ async def main():
                 await despachar_para_telegram(bot, item)
                 novas += 1
 
-        print(f"--- Varredura finalizada. Postadas agora: {novas}. Próxima em {INTERVALO_VARREDURA}s ---")
+        print(f"--- Varredura finalizada. Postadas agora: {novas}. Próxima em {INTERVALO_VARREDURA}s ---", flush=True)
         await asyncio.sleep(INTERVALO_VARREDURA)
 
 if __name__ == "__main__":
     asyncio.run(main())
-        
